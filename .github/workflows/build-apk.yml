@@ -1,0 +1,78 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: # Allows manual run button in GitHub Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Mobile Dependencies
+        run: |
+          cd mobile
+          npm ci || npm install
+
+      - name: Make Gradlew Executable
+        run: chmod +x mobile/android/gradlew
+
+      - name: Build Android Release APK
+        run: |
+          cd mobile/android
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare APK File
+        run: |
+          mkdir -p build-output
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk build-output/LiciousNewsPro.apk
+
+      - name: Upload APK as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiciousNewsPro-APK
+          path: build-output/LiciousNewsPro.apk
+          retention-days: 30
+
+      - name: Publish GitHub Release with Direct APK Download
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          tag_name: v1.0.0
+          name: Licious News Pro v1.0.0 (Release APK)
+          draft: false
+          prerelease: false
+          body: |
+            ### 🎉 Licious News Pro - Android APK Ready for Download!
+
+            Direct APK download for Android phones:
+            - **Filename**: `LiciousNewsPro.apk`
+            - **Platform**: Android
+            - **Build**: Production Release (Signed & Ready to Install)
+          files: build-output/LiciousNewsPro.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

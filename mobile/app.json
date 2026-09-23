@@ -1,0 +1,12 @@
+{
+  "expo":{
+    "name":"Licious News",
+    "slug":"licious-news",
+    "version":"1.0.0",
+    "orientation":"portrait",
+    "userInterfaceStyle":"light",
+    "plugins":["expo-notifications"],
+    "android":{"package":"com.liciousnews.app"},
+    "ios":{"bundleIdentifier":"com.liciousnews.app"}
+  }
+}
