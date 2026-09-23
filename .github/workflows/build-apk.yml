@@ -41,15 +41,29 @@ jobs:
       - name: Make Gradlew Executable
         run: chmod +x mobile/android/gradlew
 
-      - name: Build Android APK (Release or Debug)
+      - name: Build Android APK
         run: |
           cd mobile/android
-          echo "=== Attempting assembleRelease ==="
-          if ./gradlew assembleRelease --no-daemon --stacktrace; then
+          echo "=== Starting assembleRelease ==="
+          if ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee release-build.log; then
             echo "Release build succeeded!"
           else
-            echo "Release build failed, falling back to standalone assembleDebug..."
-            ./gradlew assembleDebug --no-daemon --stacktrace
+            echo "Release build failed, checking assembleDebug..."
+            echo "### Release Build Failure Tail:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 40 release-build.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            
+            echo "=== Starting assembleDebug ==="
+            if ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee debug-build.log; then
+              echo "Debug build succeeded!"
+            else
+              echo "### Debug Build Failure Tail:" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              tail -n 40 debug-build.log >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
           fi
 
       - name: Prepare APK File
