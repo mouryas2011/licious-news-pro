@@ -45,39 +45,33 @@ jobs:
         run: |
           cd mobile/android
           echo "=== Starting assembleRelease ==="
-          if ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee release-build.log; then
+          if ./gradlew assembleRelease --no-daemon --stacktrace; then
             echo "Release build succeeded!"
           else
             echo "Release build failed, checking assembleDebug..."
-            echo "### Release Build Failure Tail:" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            tail -n 40 release-build.log >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            
-            echo "=== Starting assembleDebug ==="
-            if ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee debug-build.log; then
-              echo "Debug build succeeded!"
-            else
-              echo "### Debug Build Failure Tail:" >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-              tail -n 40 debug-build.log >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-              exit 1
-            fi
+            ./gradlew assembleDebug --no-daemon --stacktrace
           fi
 
       - name: Prepare APK File
         run: |
           mkdir -p build-output
-          if [ -f mobile/android/app/build/outputs/apk/release/app-release.apk ]; then
-            echo "Using Release APK"
-            cp mobile/android/app/build/outputs/apk/release/app-release.apk build-output/LiciousNewsPro.apk
-          elif [ -f mobile/android/app/build/outputs/apk/debug/app-debug.apk ]; then
-            echo "Using Standalone Debug APK"
-            cp mobile/android/app/build/outputs/apk/debug/app-debug.apk build-output/LiciousNewsPro.apk
+          echo "Searching for generated APK files..."
+          find mobile/android -type f -name "*.apk" || true
+          
+          # Find the best APK (release or debug, ignoring unaligned)
+          APK_PATH=$(find mobile/android -type f -name "*.apk" | grep -v "unaligned" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            APK_PATH=$(find mobile/android -type f -name "*.apk" | head -n 1)
+          fi
+          
+          if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
+            echo "Selected APK: $APK_PATH"
+            cp "$APK_PATH" build-output/LiciousNewsPro.apk
+            echo "APK ready:"
+            ls -lh build-output/LiciousNewsPro.apk
           else
-            echo "Error: No APK found in build outputs!"
-            find mobile/android/app/build/outputs -type f || true
+            echo "ERROR: No APK found anywhere in mobile/android!"
+            find mobile/android/app/build -maxdepth 5 || true
             exit 1
           fi
 
