@@ -44,12 +44,38 @@ jobs:
       - name: Build Android APK
         run: |
           cd mobile/android
-          echo "=== Starting assembleRelease ==="
-          if ./gradlew assembleRelease --no-daemon --stacktrace; then
+          set +e
+          echo "=== Running assembleRelease ==="
+          ./gradlew assembleRelease --no-daemon --stacktrace > release.log 2>&1
+          RELEASE_CODE=$?
+          
+          if [ $RELEASE_CODE -eq 0 ]; then
             echo "Release build succeeded!"
           else
-            echo "Release build failed, checking assembleDebug..."
-            ./gradlew assembleDebug --no-daemon --stacktrace
+            echo "Release build failed with exit code $RELEASE_CODE"
+            echo "### ❌ Release Build Error Log:" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            tail -n 60 release.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            
+            echo "=== Running assembleDebug as Fallback ==="
+            ./gradlew assembleDebug --no-daemon --stacktrace > debug.log 2>&1
+            DEBUG_CODE=$?
+            
+            if [ $DEBUG_CODE -eq 0 ]; then
+              echo "Debug build succeeded!"
+            else
+              echo "Debug build also failed with exit code $DEBUG_CODE"
+              echo "### ❌ Debug Build Error Log:" >> $GITHUB_STEP_SUMMARY
+              echo '```text' >> $GITHUB_STEP_SUMMARY
+              tail -n 60 debug.log >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              
+              echo "==================== FULL ERROR OUTPUT ===================="
+              tail -n 100 debug.log
+              echo "==========================================================="
+              exit 1
+            fi
           fi
 
       - name: Prepare APK File
@@ -58,7 +84,6 @@ jobs:
           echo "Searching for generated APK files..."
           find mobile/android -type f -name "*.apk" || true
           
-          # Find the best APK (release or debug, ignoring unaligned)
           APK_PATH=$(find mobile/android -type f -name "*.apk" | grep -v "unaligned" | head -n 1)
           if [ -z "$APK_PATH" ]; then
             APK_PATH=$(find mobile/android -type f -name "*.apk" | head -n 1)
